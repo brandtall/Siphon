@@ -1,0 +1,11 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: 'siphon_logger'
+    static_configs:
+      - targets: ['siphon-logger:2112']
+
+  - job_name: 'siphon_ingester'
+    static_configs:
+      - targets: ['siphon-ingester:2113']

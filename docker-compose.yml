@@ -47,6 +47,7 @@ services:
     container_name: siphon-logger
     ports:
       - "5050:5050/udp"
+      - "2112:2112"
     depends_on:
       - kafka
     restart: always
@@ -58,6 +59,8 @@ services:
       args:
         APP_DIR: ./ingester
     container_name: siphon-ingester
+    ports:
+      - "2113:2113"
     depends_on:
       - kafka
       - clickhouse
@@ -73,3 +76,21 @@ services:
     depends_on:
       - siphon-logger
     restart: on-failure
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - prometheus

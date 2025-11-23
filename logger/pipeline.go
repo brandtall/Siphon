@@ -4,8 +4,14 @@ import (
 	"encoding/json"
 	"net"
 	"sync"
-	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
+
+var PacketsReceived = prometheus.NewCounter(prometheus.CounterOpts{
+	Name: "siphon_packets_received_total",
+	Help: "Total UDP packets received",
+})
 
 var bufferPool = sync.Pool{
 	New: func() interface{} {
@@ -34,6 +40,8 @@ func reader(conn net.PacketConn, packetChan chan Packet) {
 			continue
 		}
 
+		PacketsReceived.Inc()
+
 		select {
 		case packetChan <- Packet{Data: bufPtr, Length: n}:
 		default:
@@ -46,7 +54,7 @@ func worker(packetChan chan Packet, entryChan chan LogEntry) {
 	for pkg := range packetChan {
 		var entry LogEntry
 		err := json.Unmarshal((*pkg.Data)[:pkg.Length], &entry)
-		
+
 		bufferPool.Put(pkg.Data)
 
 		if err != nil {
@@ -59,23 +67,14 @@ func worker(packetChan chan Packet, entryChan chan LogEntry) {
 
 func batchProcessor(entryChan chan LogEntry, producer LogProducer) {
 	const BatchSize = 1000
-	const BatchTimeout = 1 * time.Second
-
+	
 	batch := make([]LogEntry, 0, BatchSize)
-	ticker := time.NewTicker(BatchTimeout)
-	defer ticker.Stop()
-
+	
 	for {
 		select {
 		case entry := <-entryChan:
 			batch = append(batch, entry)
 			if len(batch) >= BatchSize {
-				producer.SendBatch(batch)
-				batch = batch[:0]
-			}
-
-		case <-ticker.C:
-			if len(batch) > 0 {
 				producer.SendBatch(batch)
 				batch = batch[:0]
 			}
